@@ -6,7 +6,7 @@ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/portfolio';
+const MONGO_URI = process.env.MONGO_URI;
 
 // Middleware
 app.use(cors());
@@ -25,21 +25,26 @@ const contactSchema = new mongoose.Schema({
 
 const Contact = mongoose.model('Contact', contactSchema);
 
-// Connect to MongoDB
-mongoose.connect(MONGO_URI, {
-  serverSelectionTimeoutMS: 30000,
-  socketTimeoutMS: 45000,
-})
-  .then(() => console.log('✅ Connected to MongoDB'))
-  .catch(err => console.error('❌ MongoDB connection error:', err.message));
-// ── API ROUTES ──────────────────────────────────────
+// Connect to MongoDB once at startup
+let isConnected = false;
+const connectDB = async () => {
+  if (isConnected) return;
+  await mongoose.connect(MONGO_URI, {
+    serverSelectionTimeoutMS: 30000,
+    socketTimeoutMS: 45000,
+    bufferCommands: false,
+  });
+  isConnected = true;
+  console.log('✅ Connected to MongoDB');
+};
+connectDB().catch(err => console.error('❌ MongoDB error:', err.message));
 
-// POST /api/contact — save message to DB
+// POST /api/contact
 app.post('/api/contact', async (req, res) => {
   try {
+    await connectDB();
     const { name, email, subject, message } = req.body;
 
-    // Basic validation
     if (!name || !email || !subject || !message) {
       return res.status(400).json({ error: 'All fields are required.' });
     }
@@ -62,9 +67,10 @@ app.post('/api/contact', async (req, res) => {
   }
 });
 
-// GET /api/messages — view all messages (admin)
+// GET /api/messages
 app.get('/api/messages', async (req, res) => {
   try {
+    await connectDB();
     const messages = await Contact.find().sort({ timestamp: -1 });
     res.json({ count: messages.length, messages });
   } catch (err) {
@@ -72,12 +78,11 @@ app.get('/api/messages', async (req, res) => {
   }
 });
 
-// Serve index.html for all other routes (SPA)
+// Serve index.html
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// ── START SERVER ────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`🚀 Portfolio server running at http://localhost:${PORT}`);
 });
