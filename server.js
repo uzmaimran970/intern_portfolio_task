@@ -8,12 +8,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI;
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
-// MongoDB Contact Schema
 const contactSchema = new mongoose.Schema({
   name:      { type: String, required: true, trim: true },
   email:     { type: String, required: true, trim: true, lowercase: true },
@@ -25,26 +23,21 @@ const contactSchema = new mongoose.Schema({
 
 const Contact = mongoose.model('Contact', contactSchema);
 
-// Connect to MongoDB once at startup
 let isConnected = false;
 const connectDB = async () => {
   if (isConnected) return;
   await mongoose.connect(MONGO_URI, {
     serverSelectionTimeoutMS: 30000,
     socketTimeoutMS: 45000,
-    bufferCommands: false,
   });
   isConnected = true;
   console.log('✅ Connected to MongoDB');
 };
-connectDB().catch(err => console.error('❌ MongoDB error:', err.message));
 
-// POST /api/contact
 app.post('/api/contact', async (req, res) => {
   try {
     await connectDB();
     const { name, email, subject, message } = req.body;
-
     if (!name || !email || !subject || !message) {
       return res.status(400).json({ error: 'All fields are required.' });
     }
@@ -54,20 +47,16 @@ app.post('/api/contact', async (req, res) => {
     if (message.length < 10) {
       return res.status(400).json({ error: 'Message too short.' });
     }
-
     const contact = new Contact({ name, email, subject, message });
     await contact.save();
-
     console.log(`📩 New message from ${name} <${email}>`);
     res.status(201).json({ success: true, message: 'Message saved successfully!' });
-
   } catch (err) {
     console.error('Error saving contact:', err);
     res.status(500).json({ error: 'Internal server error.' });
   }
 });
 
-// GET /api/messages
 app.get('/api/messages', async (req, res) => {
   try {
     await connectDB();
@@ -78,7 +67,6 @@ app.get('/api/messages', async (req, res) => {
   }
 });
 
-// Serve index.html
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
